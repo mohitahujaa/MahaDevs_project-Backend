@@ -1,57 +1,107 @@
-# Sample Hardhat 3 Beta Project (`mocha` and `ethers`)
+# 🛡️ Smart Tourist Safety Monitoring & Incident Response System
 
-This project showcases a Hardhat 3 Beta project using `mocha` for tests and the `ethers` library for Ethereum interactions.
+This project provides a **tourist identity and safety monitoring backend** powered by **Node.js, Express, Supabase, Blockchain (Sepolia), and QR Codes**.  
+It enables secure tourist onboarding via KYC, generates unique **DTID hashes**, stores them on-chain, and issues **QR codes** for verification and monitoring.
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+---
 
-## Project Overview
+## ✨ Features
+- **KYC Verification**  
+  Collects tourist details (ID, trip details, contacts, itinerary).
+- **DTID Hashing**  
+  Generates unique DTID using SHA-256 hash of `id + trip_start + trip_end`.
+- **Blockchain Integration (Sepolia)**  
+  Stores DTID on-chain for immutability and tamper-proof identity.
+- **QR Code Generation**  
+  Each tourist receives a QR code linked to their DTID.
+- **Supabase Integration**  
+  - Tourist details stored in Supabase DB.  
+  - QR codes stored in Supabase Storage for frontend access.  
+- **JWT Authentication** for Admin and Tourist sessions.
+- **Dashboard APIs** for admins to view clusters, alerts, and statistics.
 
-This example project includes:
+---
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using `mocha` and ethers.js
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+## 🛠️ Tech Stack
+- **Backend:** Node.js, Express.js  
+- **Database & Storage:** Supabase  
+- **Blockchain:** Ethereum Sepolia Testnet  
+- **Authentication:** JWT  
+- **Utilities:** bcryptjs, qrcode, crypto  
 
-## Usage
+---
 
-### Running Tests
+## 📂 Project Structure
+src/
+├── config/
+│ ├── auth.js # JWT setup
+│ ├── database.js # Supabase client
+├── controllers/
+│ ├── kycController.js # Tourist KYC and profile logic
+│ ├── authController.js # Admin + tourist auth
+├── middleware/
+│ ├── auth.js # JWT middleware
+├── routes/
+│ ├── auth.js # /auth endpoints
+│ ├── kyc.js # /kyc endpoints
+│ ├── dashboard.js # /dashboard endpoints
+├── services/
+│ ├── hashService.js # SHA-256 DTID generator
+│ ├── blockchainService.js # Send DTID to Sepolia
+│ ├── qrService.js # Generate & upload QR to Supabase
+├── server.js # Entry point
 
-To run all the tests in the project, execute the following command:
+markdown
+Copy code
 
-```shell
-npx hardhat test
-```
+---
 
-You can also selectively run the Solidity or `mocha` tests:
+## ⚡ API Endpoints
 
-```shell
-npx hardhat test solidity
-npx hardhat test mocha
-```
+### 🔑 Authentication
+- `POST /auth/admin/login` → Admin login (username: `admin`, password: `admin123`)  
+- `POST /auth/refresh` → Refresh tourist token  
 
-### Make a deployment to Sepolia
+### 🧾 KYC
+- `POST /kyc/verify` → Tourist registration + KYC verification  
+- `GET /kyc/:dtid` → Fetch tourist profile  
 
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
+### 📍 Location & Safety
+- `POST /location/update` → Update tourist location  
+- `GET /location/:dtid` → Get latest location  
+- `GET /location/:dtid/history` → Get location history  
 
-To run the deployment to a local chain:
+### 📊 Dashboard (Admin only)
+- `GET /dashboard/clusters` → View tourist clusters  
+- `GET /dashboard/alerts` → Active alerts  
+- `GET /dashboard/stats` → Dashboard statistics  
 
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
-```
+---
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
+## 🚀 Setup & Installation
 
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
+1. **Clone Repository**
+```bash
+git clone https://github.com/your-username/smart-tourist-backend.git
+cd smart-tourist-backend
+Install Dependencies
 
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
+bash
+Copy code
+npm install
+Setup Environment Variables
+Create a .env file in root:
 
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
-```
+env
+Copy code
+PORT=5000
+SUPABASE_URL=https://xyzcompany.supabase.co
+SUPABASE_KEY=your_supabase_anon_key
+JWT_SECRET=your_secret_key
+SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_KEY
+SEPOLIA_PRIVATE_KEY=your_wallet_private_key
+Run Backend
 
-After setting the variable, you can run the deployment with the Sepolia network:
-
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
-```
+bash
+Copy code
+npm run dev
