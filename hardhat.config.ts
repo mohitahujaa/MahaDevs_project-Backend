@@ -1,6 +1,6 @@
-import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-ethers";
 import * as dotenv from "dotenv";
+import { HardhatUserConfig } from "hardhat/config";
 
 dotenv.config();
 
@@ -11,7 +11,7 @@ if (privateKey && !/^0x[0-9a-fA-F]{64}$/.test(privateKey)) {
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.8.24",  // 👈 match your contract pragma
+    version: "0.8.24",  // match your contract pragma
     settings: {
       optimizer: {
         enabled: true,

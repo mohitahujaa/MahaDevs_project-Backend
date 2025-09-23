@@ -1,0 +1,43 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_24-83b29871ac9ca910c36e97a4206068328fe10195",
+  "solcVersion": "0.8.24",
+  "solcLongVersion": "0.8.24+commit.e11b9ed9",
+  "userSourceNameMap": {
+    "contracts/Counter.sol": "project/contracts/Counter.sol",
+    "contracts/TouristIDRegistry.sol": "project/contracts/TouristIDRegistry.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "shanghai",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/Counter.sol": {
+        "content": "// SPDX-License-Identifier: UNLICENSED\r\npragma solidity ^0.8.24;\r\n\r\ncontract Counter {\r\n  uint public x;\r\n\r\n  event Increment(uint by);\r\n\r\n  function inc() public {\r\n    x++;\r\n    emit Increment(1);\r\n  }\r\n\r\n  function incBy(uint by) public {\r\n    require(by > 0, \"incBy: increment should be positive\");\r\n    x += by;\r\n    emit Increment(by);\r\n  }\r\n}\r\n"
+      },
+      "project/contracts/TouristIDRegistry.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.24;\r\n\r\ncontract TouristIDRegistry {\r\n    enum Role { Tourist, Guide, Authority, Admin }\r\n\r\n    struct Tourist {\r\n        bytes32 idHash;   // hash of tourist's digital ID\r\n        Role role;        // role in ecosystem\r\n        bool exists;\r\n    }\r\n\r\n    mapping(address => Tourist) private registry;\r\n    address public owner;\r\n\r\n    // Track registered DTIDs\r\n    mapping(bytes32 => bool) public dtidRegistered;\r\n    bytes32[] public dtidList;\r\n\r\n    event TouristRegistered(address indexed user, bytes32 idHash, Role role);\r\n    event RoleUpdated(address indexed user, Role newRole);\r\n    event DTIDRegistered(address indexed registrar, bytes32 indexed dtid);\r\n\r\n    modifier onlyOwner() {\r\n        require(msg.sender == owner, \"Only owner can call this\");\r\n        _;\r\n    }\r\n\r\n    constructor() {\r\n        owner = msg.sender; // contract deployer is owner\r\n    }\r\n\r\n    // Register a new tourist (or guide/authority)\r\n    function registerUser(address _user, bytes32 _idHash, Role _role) public onlyOwner {\r\n        require(!registry[_user].exists, \"User already registered\");\r\n        registry[_user] = Tourist(_idHash, _role, true);\r\n        emit TouristRegistered(_user, _idHash, _role);\r\n    }\r\n\r\n    // Update role of existing user\r\n    function updateRole(address _user, Role _newRole) public onlyOwner {\r\n        require(registry[_user].exists, \"User not found\");\r\n        registry[_user].role = _newRole;\r\n        emit RoleUpdated(_user, _newRole);\r\n    }\r\n\r\n    // Verify a tourist's ID hash\r\n    function verifyUser(address _user, bytes32 _idHash) public view returns (bool) {\r\n        if (!registry[_user].exists) return false;\r\n        return registry[_user].idHash == _idHash;\r\n    }\r\n\r\n    // Get role of a user\r\n    function getUserRole(address _user) public view returns (Role) {\r\n        require(registry[_user].exists, \"User not found\");\r\n        return registry[_user].role;\r\n    }\r\n\r\n    // Register a DTID hash\r\n    function registerDTID(bytes32 _dtid) public onlyOwner {\r\n        require(!dtidRegistered[_dtid], \"DTID already registered\");\r\n        dtidRegistered[_dtid] = true;\r\n        dtidList.push(_dtid);\r\n        emit DTIDRegistered(msg.sender, _dtid);\r\n    }\r\n\r\n    // Verify if a DTID hash exists\r\n    function verifyDTID(bytes32 _dtid) public view returns (bool) {\r\n        return dtidRegistered[_dtid];\r\n    }\r\n\r\n    function totalDTIDs() public view returns (uint) {\r\n        return dtidList.length;\r\n    }\r\n\r\n    function getDTID(uint index) public view returns (bytes32) {\r\n        return dtidList[index];\r\n    }\r\n}\r\n"
+      }
+    }
+  }
+}

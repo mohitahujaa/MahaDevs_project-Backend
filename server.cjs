@@ -33,6 +33,7 @@ app.use('/qr-codes', express.static(path.join(__dirname, 'public/qr-codes')));
 // Routes
 app.use('/api/auth', require('./src/routes/auth.cjs'));
 app.use('/api/kyc', require('./src/routes/kyc.cjs'));
+app.use('/api/geofence', require('./src/routes/geofence.cjs'));
 
 // API documentation endpoint
 app.get('/', (req, res) => {
@@ -81,11 +82,11 @@ app.use('*', (req, res) => {
   const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Smart Tourist Safety Monitoring API Server is running on port ${PORT}`);
-  console.log(`📍 API Documentation: http://localhost:${PORT}`);
-  console.log(`🏥 Health Check: http://localhost:${PORT}/health`);
-  console.log(`🔐 Admin Login: POST http://localhost:${PORT}/auth/admin/login`);
-  console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(` Smart Tourist Safety Monitoring API Server is running on port ${PORT}`);
+  console.log(` API Documentation: http://localhost:${PORT}`);
+  console.log(` Health Check: http://localhost:${PORT}/health`);
+  console.log(` Admin Login: POST http://localhost:${PORT}/auth/admin/login`);
+  console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 
 module.exports = app;
