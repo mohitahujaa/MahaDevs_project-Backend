@@ -1,6 +1,7 @@
 // controllers/kycController.js
 import { generateDTIDFromInput } from '../services/hashService.js';
 import { generateTouristQRCode } from '../services/qrCodeService.js';
+import { storeTouristData, storeBlockchainTransaction } from '../services/databaseService.js';
 
 // Enhanced blockchain service using QR Code Service  
 async function storeDTIDAndGenerateQR(dtidBytes32, touristData) {

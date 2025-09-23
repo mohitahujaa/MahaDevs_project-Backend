@@ -1,6 +1,11 @@
 // controllers/kycController.cjs
 const crypto = require('crypto');
 const { generateTouristQRCode } = require('../services/qrCodeService.cjs');
+const { storeTouristData, storeBlockchainTransaction } = require('../services/databaseService.cjs');
+const { ethers } = require('ethers');
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 // Generate SHA-256 from actual frontend input (id, trip_start, trip_end)
 function generateDTIDFromInput({ id, trip_start, trip_end }, salt = '') {
@@ -11,9 +16,67 @@ function generateDTIDFromInput({ id, trip_start, trip_end }, salt = '') {
   return crypto.createHash('sha256').update(payload).digest('hex');
 }
 
-// Enhanced blockchain service using QR Code Service
+// Real blockchain service using actual Sepolia network
 async function storeDTIDAndGenerateQR(dtidBytes32, touristData, options = {}) {
-  console.log('[BLOCKCHAIN] Storing DTID on blockchain:', dtidBytes32);
+  console.log('[BLOCKCHAIN] Starting real blockchain transaction for DTID:', dtidBytes32);
+  
+  const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL;
+  const PRIVATE_KEY = process.env.PRIVATE_KEY;
+  const CONTRACT_ADDRESS = "0x89AF6d79b35d0f43b95e90618d7C036C2045e943"; // From artifacts
+  
+  let blockchainResult = null;
+  
+  // Try real blockchain transaction if configured
+  if (SEPOLIA_RPC_URL && PRIVATE_KEY && CONTRACT_ADDRESS) {
+    try {
+      console.log('[BLOCKCHAIN] Connecting to Sepolia network...');
+      const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL);
+      const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+      
+      // Basic contract ABI for registerDTID function
+      const contractABI = [
+        "function registerDTID(bytes32 dtid) external",
+        "function getDTID(bytes32 dtid) external view returns (bool exists, uint256 timestamp)",
+        "event DTIDRegistered(bytes32 indexed dtid, address indexed tourist, uint256 timestamp)"
+      ];
+      
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, wallet);
+      
+      console.log('[BLOCKCHAIN] Sending transaction to register DTID...');
+      const tx = await contract.registerDTID(dtidBytes32);
+      console.log('[BLOCKCHAIN] Transaction sent, hash:', tx.hash);
+      
+      console.log('[BLOCKCHAIN] Waiting for confirmation...');
+      const receipt = await tx.wait();
+      console.log('[BLOCKCHAIN] Transaction confirmed in block:', receipt.blockNumber);
+      
+      blockchainResult = {
+        success: true,
+        transactionHash: tx.hash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed.toString(),
+        contractAddress: CONTRACT_ADDRESS,
+        confirmations: receipt.confirmations,
+        network: 'sepolia',
+        real: true
+      };
+      
+    } catch (error) {
+      console.error('[BLOCKCHAIN] Real blockchain transaction failed:', error.message);
+      blockchainResult = {
+        success: false,
+        error: error.message,
+        fallback: true
+      };
+    }
+  } else {
+    console.log('[BLOCKCHAIN] Missing blockchain configuration, using simulation');
+    blockchainResult = {
+      success: false,
+      error: 'Missing blockchain configuration',
+      simulated: true
+    };
+  }
   
   // Generate QR code using the dedicated service
   let qrResult = null;
@@ -25,16 +88,11 @@ async function storeDTIDAndGenerateQR(dtidBytes32, touristData, options = {}) {
     qrResult = { success: false, error: error.message };
   }
   
-  // Simulate blockchain operation
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
   return {
-    transactionHash: `0x${crypto.randomBytes(32).toString('hex')}`,
-    contractAddress: '0x742d35Cc1234567890abcdef1234567890abcdef',
+    blockchain: blockchainResult,
     qrResult,
     qrPath: qrResult.success ? qrResult.filePath : null,
-    qrGenerated: qrResult.success,
-    simulated: true
+    qrGenerated: qrResult.success
   };
 }
 
@@ -76,25 +134,38 @@ const verifyKYC = async (req, res) => {
       console.log('[KYC] Generated DTID hex:', sha256Hex);
       console.log('[KYC] DTID bytes32:', dtidBytes32, 'for id:', id, 'trip:', trip_start, '->', trip_end);
 
-      // 2) Store on Sepolia and generate QR using QR Service
+      // 2) Store on Sepolia and generate QR using real blockchain
       let onchain = null;
       const touristData = { id, full_name, trip_start, trip_end };
       
       try {
         onchain = await storeDTIDAndGenerateQR(dtidBytes32, touristData);
-        console.log('[KYC] On-chain tx hash:', onchain.transactionHash, 'contract:', onchain.contractAddress);
+        
+        if (onchain.blockchain.success) {
+          console.log('[KYC] ✅ Real blockchain transaction successful!');
+          console.log('[KYC] Transaction hash:', onchain.blockchain.transactionHash);
+          console.log('[KYC] Block number:', onchain.blockchain.blockNumber);
+          console.log('[KYC] Contract address:', onchain.blockchain.contractAddress);
+          console.log('[KYC] Gas used:', onchain.blockchain.gasUsed);
+        } else {
+          console.log('[KYC] ⚠️ Blockchain transaction failed:', onchain.blockchain.error);
+        }
+        
         if (onchain.qrGenerated) {
           console.log('[KYC] QR code generated successfully:', onchain.qrPath);
         }
       } catch (e) {
-        // If blockchain not configured, continue with KYC success but report the error
-        onchain = { error: e.message };
-        console.warn('[KYC] On-chain store skipped:', e.message);
+        // If blockchain fails completely, continue with KYC success but report the error
+        onchain = { 
+          blockchain: { success: false, error: e.message },
+          qrResult: { success: false, error: e.message }
+        };
+        console.warn('[KYC] Complete failure:', e.message);
       }
   
       // Mock KYC verification
       const kycStatus = 'verified';
-  
+
       // Prepare response data in ordered format
       const responseData = {
         full_name,
@@ -112,8 +183,41 @@ const verifyKYC = async (req, res) => {
         dtid: dtidBytes32,
         onchain
       };
-  
-      res.status(201).json({
+
+      // Store tourist data in Supabase
+      let databaseResult = null;
+      try {
+        console.log('[KYC] Storing tourist data in Supabase...');
+        databaseResult = await storeTouristData(responseData);
+        
+        if (databaseResult) {
+          console.log('[KYC] ✅ Tourist data stored in Supabase:', databaseResult.id);
+          
+          // Store blockchain transaction data if available
+          if (onchain.blockchain && onchain.blockchain.success) {
+            await storeBlockchainTransaction(dtidBytes32, {
+              transactionHash: onchain.blockchain.transactionHash,
+              contractAddress: onchain.blockchain.contractAddress,
+              blockNumber: onchain.blockchain.blockNumber,
+              gasUsed: onchain.blockchain.gasUsed,
+              qrPath: onchain.qrPath,
+              status: 'confirmed'
+            });
+            console.log('[KYC] ✅ Blockchain transaction data stored in Supabase');
+          }
+        } else {
+          console.log('[KYC] ⚠️ Failed to store tourist data in Supabase');
+        }
+      } catch (dbError) {
+        console.error('[KYC] Database storage error:', dbError);
+        // Continue with response even if database fails
+      }
+
+      // Add database result to response
+      responseData.database = {
+        stored: !!databaseResult,
+        id: databaseResult?.id || null
+      };      res.status(201).json({
         success: true,
         message: 'KYC verification completed successfully',
         data: responseData
