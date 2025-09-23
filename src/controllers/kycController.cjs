@@ -36,30 +36,49 @@ async function storeDTIDAndGenerateQR(dtidBytes32, touristData, options = {}) {
       // Basic contract ABI for registerDTID function
       const contractABI = [
         "function registerDTID(bytes32 dtid) external",
-        "function getDTID(bytes32 dtid) external view returns (bool exists, uint256 timestamp)",
-        "event DTIDRegistered(bytes32 indexed dtid, address indexed tourist, uint256 timestamp)"
+        "function verifyDTID(bytes32 dtid) external view returns (bool)",
+        "function totalDTIDs() external view returns (uint256)",
+        "event DTIDRegistered(address indexed registrar, bytes32 indexed dtid)"
       ];
       
       const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, wallet);
       
-      console.log('[BLOCKCHAIN] Sending transaction to register DTID...');
-      const tx = await contract.registerDTID(dtidBytes32);
-      console.log('[BLOCKCHAIN] Transaction sent, hash:', tx.hash);
+      // First check if DTID already exists
+      console.log('[BLOCKCHAIN] Checking if DTID already exists...');
+      const exists = await contract.verifyDTID(dtidBytes32);
       
-      console.log('[BLOCKCHAIN] Waiting for confirmation...');
-      const receipt = await tx.wait();
-      console.log('[BLOCKCHAIN] Transaction confirmed in block:', receipt.blockNumber);
-      
-      blockchainResult = {
-        success: true,
-        transactionHash: tx.hash,
-        blockNumber: receipt.blockNumber,
-        gasUsed: receipt.gasUsed.toString(),
-        contractAddress: CONTRACT_ADDRESS,
-        confirmations: receipt.confirmations,
-        network: 'sepolia',
-        real: true
-      };
+      if (exists) {
+        console.log('[BLOCKCHAIN] DTID already exists on blockchain, skipping registration');
+        blockchainResult = {
+          success: true,
+          transactionHash: 'ALREADY_REGISTERED',
+          contractAddress: CONTRACT_ADDRESS,
+          network: 'sepolia',
+          real: true,
+          alreadyExists: true,
+          message: 'DTID already registered on blockchain'
+        };
+      } else {
+        console.log('[BLOCKCHAIN] DTID not found, proceeding with registration...');
+        const tx = await contract.registerDTID(dtidBytes32);
+        console.log('[BLOCKCHAIN] Transaction sent, hash:', tx.hash);
+        
+        console.log('[BLOCKCHAIN] Waiting for confirmation...');
+        const receipt = await tx.wait();
+        console.log('[BLOCKCHAIN] Transaction confirmed in block:', receipt.blockNumber);
+        
+        blockchainResult = {
+          success: true,
+          transactionHash: tx.hash,
+          blockNumber: receipt.blockNumber,
+          gasUsed: receipt.gasUsed.toString(),
+          contractAddress: CONTRACT_ADDRESS,
+          confirmations: receipt.confirmations,
+          network: 'sepolia',
+          real: true,
+          newRegistration: true
+        };
+      }
       
     } catch (error) {
       console.error('[BLOCKCHAIN] Real blockchain transaction failed:', error.message);
@@ -128,11 +147,12 @@ const verifyKYC = async (req, res) => {
         });
       }
 
-      // 1) Generate DTID from actual input
-      const sha256Hex = generateDTIDFromInput({ id, trip_start, trip_end }, salt);
+      // 1) Generate DTID from actual input with timestamp for uniqueness
+      const timestamp = Date.now();
+      const sha256Hex = generateDTIDFromInput({ id, trip_start, trip_end, timestamp }, salt);
       const dtidBytes32 = `0x${sha256Hex}`;
       console.log('[KYC] Generated DTID hex:', sha256Hex);
-      console.log('[KYC] DTID bytes32:', dtidBytes32, 'for id:', id, 'trip:', trip_start, '->', trip_end);
+      console.log('[KYC] DTID bytes32:', dtidBytes32, 'for id:', id, 'trip:', trip_start, '->', trip_end, 'timestamp:', timestamp);
 
       // 2) Store on Sepolia and generate QR using real blockchain
       let onchain = null;

@@ -2,11 +2,76 @@
 const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs').promises;
+const fsSync = require('fs');
+const { createClient } = require('@supabase/supabase-js');
+const { storeQRCodeData } = require('./databaseService.cjs');
+
+// Initialize Supabase client
+require('dotenv').config();
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 /**
  * QR Code Service - CommonJS version
  * Handles all QR code generation and storage operations
  */
+
+/**
+ * Upload QR code file to Supabase Storage
+ * @param {string} dtid - The DTID
+ * @param {string} localPath - Local file path
+ * @param {string} fileName - File name for storage
+ * @returns {Promise<Object>} - Upload result with public URL
+ */
+async function uploadQRCodeToSupabase(dtid, localPath, fileName) {
+  try {
+    console.log('[QR-SERVICE] Uploading QR code to Supabase Storage...');
+    
+    // Create a readable stream from the local file
+    const fileBuffer = await fs.readFile(localPath);
+    
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('qrcodes')
+      .upload(fileName, fileBuffer, {
+        contentType: 'image/png',
+        upsert: true // overwrite if exists
+      });
+
+    if (error) {
+      console.error('[QR-SERVICE] ❌ Supabase upload error:', error);
+      throw error;
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('qrcodes')
+      .getPublicUrl(fileName);
+    
+    console.log('[QR-SERVICE] ✅ QR code uploaded to Supabase Storage:', publicUrl);
+    
+    // Clean up local file after successful upload
+    try {
+      await fs.unlink(localPath);
+      console.log('[QR-SERVICE] 🧹 Local file cleaned up:', localPath);
+    } catch (unlinkError) {
+      console.warn('[QR-SERVICE] ⚠️ Could not clean up local file:', unlinkError.message);
+    }
+    
+    return {
+      success: true,
+      publicUrl,
+      storageData: data,
+      fileName
+    };
+    
+  } catch (error) {
+    console.error('[QR-SERVICE] ❌ Failed to upload QR code to Supabase:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
 
 /**
  * Generate QR code for DTID and save to specified location
@@ -105,7 +170,58 @@ async function generateTouristQRCode(dtidBytes32, touristData = {}) {
     }
   };
 
-  return await generateDTIDQRCode(dtidBytes32, options);
+  try {
+    // Generate the QR code file locally first
+    const qrResult = await generateDTIDQRCode(dtidBytes32, options);
+    
+    // Upload QR code to Supabase Storage
+    const uploadFileName = `${dtidBytes32}.png`;
+    const uploadResult = await uploadQRCodeToSupabase(dtidBytes32, qrResult.filePath, uploadFileName);
+    
+    if (!uploadResult.success) {
+      console.warn('[QR-SERVICE] ⚠️ QR code generated locally but Supabase upload failed:', uploadResult.error);
+      // Fall back to local storage URL
+      const relativePath = `/qr-codes/${qrResult.fileName}`;
+      const fallbackUrl = `${process.env.BASE_URL || 'http://localhost:3002'}${relativePath}`;
+      
+      console.log('[QR-SERVICE] Using fallback local URL:', fallbackUrl);
+      const dbResult = await storeQRCodeData(dtidBytes32, fallbackUrl);
+      
+      return {
+        ...qrResult,
+        databaseStored: dbResult.success,
+        databaseError: dbResult.error,
+        publicUrl: fallbackUrl,
+        uploadedToSupabase: false,
+        uploadError: uploadResult.error
+      };
+    }
+    
+    // Store QR code information in database with Supabase URL
+    console.log('[QR-SERVICE] Storing QR code data in database with Supabase URL...');
+    const dbResult = await storeQRCodeData(dtidBytes32, uploadResult.publicUrl);
+    
+    if (!dbResult.success) {
+      console.warn('[QR-SERVICE] ⚠️ QR code uploaded to Supabase but database storage failed:', dbResult.error);
+    } else {
+      console.log('[QR-SERVICE] ✅ QR code data stored in database successfully');
+    }
+    
+    // Return combined result
+    return {
+      ...qrResult,
+      databaseStored: dbResult.success,
+      databaseError: dbResult.error,
+      publicUrl: uploadResult.publicUrl,
+      uploadedToSupabase: true,
+      supabaseData: uploadResult.storageData,
+      fileName: uploadResult.fileName
+    };
+    
+  } catch (error) {
+    console.error('[QR-SERVICE] Failed to generate tourist QR code:', error);
+    throw error;
+  }
 }
 
 /**
@@ -184,5 +300,6 @@ module.exports = {
   generateDTIDQRCode,
   generateTouristQRCode,
   getQRCodeInfo,
-  listQRCodes
+  listQRCodes,
+  uploadQRCodeToSupabase
 };

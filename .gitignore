@@ -12,7 +12,7 @@ pnpm-debug.log*
 .env.test.local
 .env.production.local
 
-# Test files and scripts
+# Test files and scripts (ignore all except the working one)
 test-*.js
 test-*.cjs
 test-*.mjs
@@ -32,6 +32,12 @@ test-supabase.js
 test-simple.cjs
 test-corrected.cjs
 test-supabase.cjs
+test-kyc-curl.cjs
+test-qr-database.cjs
+test-supabase-storage.cjs
+
+# Keep the working test file
+!test-kyc-curl-new.cjs
 
 # Development and debugging files
 debug.js

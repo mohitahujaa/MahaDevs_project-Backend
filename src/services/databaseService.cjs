@@ -63,6 +63,128 @@ async function storeTouristData(tourist) {
 }
 
 /**
+ * Store QR code information in Supabase qr_codes table
+ * @param {string} dtid - Tourist DTID
+ * @param {string} fileUrl - URL/path to the QR code file
+ * @returns {Promise<Object>} - Storage result
+ */
+async function storeQRCodeData(dtid, fileUrl) {
+  try {
+    console.log("[DATABASE] Storing QR code data for DTID:", dtid);
+    
+    // Simplified payload with just the essential fields
+    const qrData = {
+      dtid: dtid,
+      file_url: fileUrl
+      // Note: Let Supabase handle any timestamp fields automatically
+    };
+
+    const { data, error } = await supabase
+      .from('qr_codes')
+      .insert([qrData]);
+
+    if (error) {
+      console.error("[DATABASE] ❌ Error storing QR code data:", error);
+      
+      // Handle specific error cases
+      if (error.code === '23505') { // Unique constraint violation
+        console.log("[DATABASE] 🔄 QR code already exists, updating...");
+        
+        // Try to update existing record
+        const { data: updateData, error: updateError } = await supabase
+          .from('qr_codes')
+          .update({ file_url: fileUrl })
+          .eq('dtid', dtid);
+          
+        if (updateError) {
+          console.error("[DATABASE] ❌ Error updating QR code:", updateError);
+          return { success: false, error: updateError.message, data: null };
+        }
+        
+        console.log("[DATABASE] ✅ QR code data updated successfully");
+        return { success: true, error: null, action: 'updated' };
+      }
+      
+      return { success: false, error: error.message, data: null };
+    }
+    
+    console.log("[DATABASE] ✅ QR code data stored successfully");
+    return { success: true, error: null, action: 'created' };
+    
+  } catch (err) {
+    console.error("[DATABASE] ❌ Unexpected error storing QR code:", err);
+    return { success: false, error: err.message, data: null };
+  }
+}
+
+/**
+ * Get QR code information by DTID
+ * @param {string} dtid - Tourist DTID
+ * @returns {Promise<Object>} - QR code data or null
+ */
+async function getQRCodeByDTID(dtid) {
+  try {
+    console.log("[DATABASE] Fetching QR code for DTID:", dtid);
+    
+    const { data, error } = await supabase
+      .from('qr_codes')
+      .select('*')
+      .eq('dtid', dtid)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        console.log("[DATABASE] ℹ️ No QR code found for DTID:", dtid);
+        return { success: false, error: 'QR code not found', data: null };
+      }
+      console.error("[DATABASE] ❌ Error fetching QR code:", error);
+      return { success: false, error: error.message, data: null };
+    }
+    
+    console.log("[DATABASE] ✅ QR code data retrieved successfully");
+    return { success: true, error: null, data: data };
+    
+  } catch (err) {
+    console.error("[DATABASE] ❌ Unexpected error fetching QR code:", err);
+    return { success: false, error: err.message, data: null };
+  }
+}
+
+/**
+ * List all QR codes with optional filtering
+ * @param {Object} filters - Optional filters (limit, offset, etc.)
+ * @returns {Promise<Object>} - QR codes list
+ */
+async function listQRCodes(filters = {}) {
+  try {
+    const { limit = 50, offset = 0 } = filters;
+    
+    console.log("[DATABASE] Listing QR codes...");
+    
+    let query = supabase
+      .from('qr_codes')
+      .select('*');
+    
+    if (limit) query = query.limit(limit);
+    if (offset) query = query.range(offset, offset + limit - 1);
+    
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("[DATABASE] ❌ Error listing QR codes:", error);
+      return { success: false, error: error.message, data: null };
+    }
+    
+    console.log(`[DATABASE] ✅ Retrieved ${data.length} QR codes`);
+    return { success: true, error: null, data: data };
+    
+  } catch (err) {
+    console.error("[DATABASE] ❌ Unexpected error listing QR codes:", err);
+    return { success: false, error: err.message, data: null };
+  }
+}
+
+/**
  * Get tourist data by DTID
  * @param {string} dtid - Tourist DTID
  * @returns {Promise<Object|null>} - Tourist data or null if not found
@@ -193,5 +315,8 @@ module.exports = {
   updateTouristData,
   storeBlockchainTransaction,
   testDatabaseConnection,
+  storeQRCodeData,
+  getQRCodeByDTID,
+  listQRCodes,
   supabase
 };
