@@ -5,7 +5,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "deploy:sepolia": "hardhat run --network sepolia scripts/deploy.ts",
-    "dtid:store": "node --loader ts-node/esm scripts/store-dtid.ts",
+  "dtid:store": "node --loader ts-node/esm scripts/store-dtid.ts",
+  "dtid:verify": "node --loader ts-node/esm scripts/verify-dtid.ts",
     "dtid:register": "node scripts/register-dtid.mjs",
     "dtid:store:hashservice": "node scripts/store-dtid.mjs",
     "dev": "node server.cjs"
@@ -55,5 +56,5 @@
     "mocha": "^11.7.2",
     "typescript": "~5.8.0"
   },
-  "type": "module"
+  "type": "commonjs"
 }
