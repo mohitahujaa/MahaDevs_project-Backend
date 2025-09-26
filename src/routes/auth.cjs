@@ -39,13 +39,16 @@ router.post('/register', async (req, res) => {
     const userMobileNumber = mobile_number;
     console.log(`Mobile number received and stored: ${userMobileNumber}`);
 
-    // Search for the mobile number in tourists table to get DTID
+    // Search for the mobile number in tourists table to get DTID and user details
     let userDTID = null;
+    let userName = null;
+    let qrCodeData = null;
+    
     try {
       const { data: tourist, error: searchError } = await supabase
         .from('tourists')
-        .select('dtid, full_name, mobile_number')
-        .eq('mobile_number', userMobileNumber)
+        .select('dtid, full_name, contact_number')
+        .eq('contact_number', userMobileNumber)
         .single();
 
       if (searchError) {
@@ -59,7 +62,33 @@ router.post('/register', async (req, res) => {
         console.log(`No tourist found with mobile number: ${userMobileNumber}`);
       } else {
         userDTID = tourist.dtid;
-        console.log(`Found tourist with DTID: ${userDTID} for mobile: ${userMobileNumber}`);
+        userName = tourist.full_name;
+        console.log(`Found tourist: ${userName} with DTID: ${userDTID} for mobile: ${userMobileNumber}`);
+        
+        // If tourist found, fetch QR code from qr_codes table
+        if (userDTID) {
+          try {
+            const { data: qrCode, error: qrError } = await supabase
+              .from('qr_codes')
+              .select('dtid, file_url')
+              .eq('dtid', userDTID)
+              .single();
+              
+            if (qrError) {
+              console.error('QR code search error:', qrError);
+              if (qrError.code !== 'PGRST116') {
+                console.log(`QR code database error for DTID ${userDTID}:`, qrError);
+              } else {
+                console.log(`No QR code found for DTID: ${userDTID}`);
+              }
+            } else {
+              qrCodeData = qrCode;
+              console.log(`Found QR code for DTID: ${userDTID}`);
+            }
+          } catch (qrDbError) {
+            console.error('QR code database connection error:', qrDbError);
+          }
+        }
       }
     } catch (dbError) {
       console.error('Database connection error:', dbError);
@@ -73,12 +102,14 @@ router.post('/register', async (req, res) => {
     const otp = generateOTP();
     const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes from now
 
-    // Store OTP in memory with expiry (include DTID if found)
+    // Store OTP in memory with expiry (include user data if found)
     otpStorage.set(userMobileNumber, {
       otp: otp,
       expiry: otpExpiry,
       attempts: 0,
-      dtid: userDTID // Store DTID for later use
+      dtid: userDTID,
+      full_name: userName,
+      qr_code: qrCodeData
     });
 
     console.log(`Generated OTP for ${userMobileNumber}: ${otp}`);
@@ -93,7 +124,9 @@ router.post('/register', async (req, res) => {
         message: 'OTP sent to your mobile number successfully!',
         mobile_number: userMobileNumber,
         dtid: userDTID,
+        full_name: userName,
         has_dtid: userDTID ? true : false,
+        qr_code: qrCodeData,
         timestamp: new Date().toISOString()
       });
 
@@ -108,7 +141,9 @@ router.post('/register', async (req, res) => {
         message: 'OTP generated successfully! (Check server console for OTP - SMS service may be unavailable)',
         mobile_number: userMobileNumber,
         dtid: userDTID,
+        full_name: userName,
         has_dtid: userDTID ? true : false,
+        qr_code: qrCodeData,
         otp_for_testing: otp, // Include OTP in response for testing if SMS fails
         timestamp: new Date().toISOString()
       });
@@ -174,16 +209,19 @@ router.post('/verify-otp', async (req, res) => {
       });
     }
 
-    // OTP is valid - get DTID and clean up
+    // OTP is valid - get user data and clean up
     const userDTID = storedOtpData.dtid;
+    const userName = storedOtpData.full_name;
+    const qrCodeData = storedOtpData.qr_code;
     otpStorage.delete(mobile_number);
-    console.log(`OTP verified successfully for ${mobile_number}, DTID: ${userDTID || 'Not found'}`);
+    console.log(`OTP verified successfully for ${mobile_number}, User: ${userName || 'Not found'}, DTID: ${userDTID || 'Not found'}`);
 
     // Generate JWT token
     const token = jwt.sign(
       { 
         mobile_number: mobile_number,
         dtid: userDTID,
+        full_name: userName,
         is_verified: true,
         verified_at: new Date().toISOString()
       },
@@ -198,7 +236,9 @@ router.post('/verify-otp', async (req, res) => {
       user: {
         mobile_number: mobile_number,
         dtid: userDTID,
+        full_name: userName,
         has_dtid: userDTID ? true : false,
+        qr_code: qrCodeData,
         is_verified: true,
         verified_at: new Date().toISOString()
       }
