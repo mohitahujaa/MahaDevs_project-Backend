@@ -31,7 +31,7 @@ app.use(limiter);
 app.use('/qr-codes', express.static(path.join(__dirname, 'public/qr-codes')));
 
 // Routes
-app.use('/auth', require('./src/routes/auth'));
+app.use('/api/auth', require('./src/routes/auth'));
 app.use('/kyc', require('./src/routes/kyc'));
 
 // API documentation endpoint
@@ -42,8 +42,11 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       authentication: {
-        'POST /auth/admin/login': 'Admin login',
-        'POST /auth/refresh': 'Tourist token refresh'
+        'POST /api/auth/register': 'Mobile number registration',
+        'POST /api/auth/verify-otp': 'OTP verification',
+        'POST /api/auth/resend-otp': 'Resend OTP',
+        'POST /api/auth/admin/login': 'Admin login',
+        'POST /api/auth/refresh': 'Tourist token refresh'
       },
       kyc: {
         'POST /kyc/verify': 'KYC verification and DTID generation',
