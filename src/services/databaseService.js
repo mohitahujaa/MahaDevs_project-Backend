@@ -34,7 +34,8 @@ export async function storeTouristData(tourist) {
         nationality: tourist.nationality,
         itinerary: tourist.itinerary, // JSON field
         Trip_Start: tourist.trip_start, // Note: Capital T and underscore
-        Trip_End: tourist.trip_end       // Note: Capital T and underscore
+        Trip_End: tourist.trip_end,     // Note: Capital T and underscore
+        id_file_path: tourist.id_file_path // Store the uploaded document path
       }])
       .select(); // Return the inserted data
 

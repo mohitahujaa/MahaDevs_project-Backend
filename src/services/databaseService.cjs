@@ -33,7 +33,8 @@ async function storeTouristData(tourist) {
         emergency_contact_2: tourist.emergency_contact_2,
         nationality: tourist.nationality,
         Trip_Start: tourist.trip_start, // Note: Capital T and underscore
-        Trip_End: tourist.trip_end       // Note: Capital T and underscore
+        Trip_End: tourist.trip_end,     // Note: Capital T and underscore
+        id_file_path: tourist.id_file_path // Store the uploaded document path
         // Note: Excluding itinerary as it doesn't exist in current schema
       }])
       .select(); // Return the inserted data

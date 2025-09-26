@@ -34,6 +34,15 @@ app.use('/qr-codes', express.static(path.join(__dirname, 'public/qr-codes')));
 app.use('/api/auth', require('./src/routes/auth.cjs'));
 app.use('/api/kyc', require('./src/routes/kyc.cjs'));
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Server is healthy',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // API documentation endpoint
 app.get('/', (req, res) => {
   res.json({

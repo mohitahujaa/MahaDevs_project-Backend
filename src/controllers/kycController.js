@@ -44,7 +44,8 @@ export const verifyKYC = async (req, res) => {
       itinerary,
       trip_start,
       trip_end,
-      salt
+      salt,
+      id_file_path
     } = req.body;
 
     if (!full_name || !date_of_birth || !contact_number || !emergency_contact_1) {
@@ -81,6 +82,30 @@ export const verifyKYC = async (req, res) => {
 
     const kycStatus = 'verified';
 
+    // 3) Store tourist data in database
+    const touristRecord = {
+      dtid: dtidBytes32,
+      full_name,
+      date_of_birth,
+      contact_number,
+      email,
+      emergency_contact_1,
+      emergency_contact_2,
+      nationality: nationality || 'India',
+      trip_start: trip_start || null,
+      trip_end: trip_end || null,
+      itinerary: itinerary || [],
+      id_file_path: id_file_path || null
+    };
+
+    try {
+      const dbResult = await storeTouristData(touristRecord);
+      console.log('[KYC] Tourist data stored in database:', dbResult.success);
+    } catch (dbError) {
+      console.warn('[KYC] Database storage failed:', dbError.message);
+      // Don't fail the whole process if database storage fails
+    }
+
     const responseData = {
       full_name,
       id,
@@ -95,7 +120,8 @@ export const verifyKYC = async (req, res) => {
       itinerary: itinerary || [],
       status: kycStatus,
       dtid: dtidBytes32,
-      onchain
+      onchain,
+      id_file_path: id_file_path || null
     };
 
     return res.status(201).json({ success: true, message: 'KYC verification completed successfully', data: responseData });

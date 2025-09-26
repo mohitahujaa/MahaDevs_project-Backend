@@ -129,7 +129,8 @@ const verifyKYC = async (req, res) => {
         itinerary,
         trip_start,
         trip_end,
-        salt
+        salt,
+        id_file_path
       } = req.body;
   
       // Validation
@@ -201,7 +202,8 @@ const verifyKYC = async (req, res) => {
         itinerary: itinerary || [],
         status: kycStatus,
         dtid: dtidBytes32,
-        onchain
+        onchain,
+        id_file_path: id_file_path || null
       };
 
       // Store tourist data in Supabase

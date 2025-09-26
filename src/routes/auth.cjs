@@ -37,7 +37,6 @@ router.post('/register', async (req, res) => {
 
     // Store mobile number in variable
     const userMobileNumber = mobile_number;
-    console.log(`Mobile number received and stored: ${userMobileNumber}`);
 
     // Search for the mobile number in tourists table to get DTID and user details
     let userDTID = null;
@@ -52,18 +51,15 @@ router.post('/register', async (req, res) => {
         .single();
 
       if (searchError) {
-        console.error('Tourist search error:', searchError);
         if (searchError.code !== 'PGRST116') { // PGRST116 means no rows found
           return res.status(500).json({
             success: false,
             message: 'Database error while searching for tourist'
           });
         }
-        console.log(`No tourist found with mobile number: ${userMobileNumber}`);
       } else {
         userDTID = tourist.dtid;
         userName = tourist.full_name;
-        console.log(`Found tourist: ${userName} with DTID: ${userDTID} for mobile: ${userMobileNumber}`);
         
         // If tourist found, fetch QR code from qr_codes table
         if (userDTID) {
@@ -74,19 +70,11 @@ router.post('/register', async (req, res) => {
               .eq('dtid', userDTID)
               .single();
               
-            if (qrError) {
-              console.error('QR code search error:', qrError);
-              if (qrError.code !== 'PGRST116') {
-                console.log(`QR code database error for DTID ${userDTID}:`, qrError);
-              } else {
-                console.log(`No QR code found for DTID: ${userDTID}`);
-              }
-            } else {
+            if (!qrError && qrCode) {
               qrCodeData = qrCode;
-              console.log(`Found QR code for DTID: ${userDTID}`);
             }
           } catch (qrDbError) {
-            console.error('QR code database connection error:', qrDbError);
+            // Handle QR code fetch errors silently
           }
         }
       }
